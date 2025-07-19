@@ -3,8 +3,21 @@ import { getAuthToken } from "./auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let errorMessage = res.statusText;
+    try {
+      // Try to parse JSON error response first
+      const errorData = await res.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch {
+      // If JSON parsing fails, fall back to text
+      try {
+        const text = await res.text();
+        errorMessage = text || errorMessage;
+      } catch {
+        // If both fail, use status text
+      }
+    }
+    throw new Error(errorMessage);
   }
 }
 
