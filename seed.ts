@@ -1,649 +1,402 @@
-/**
- * WizSpeek® v3.0.0 - Comprehensive Demo & Testing Seed Data
- * 
- * This seed file creates realistic demo data that showcases all three enhancements:
- * - Enhancement 1: WebRTC Audio/Video Calling
- * - Enhancement 2: AI-Powered Message Intelligence
- * - Enhancement 3: Advanced File Sharing with AES-256 Encryption
- * 
- * Includes enterprise compliance features, role-based access, and audit trails.
- */
+import { db } from "./server/db";
+import { eq } from "drizzle-orm";
+import { 
+  users, 
+  conversations, 
+  conversationParticipants, 
+  messages,
+  stories,
+  storyViews,
+  userBlocks,
+  files,
+  fileShares,
+  fileShareAccess,
+  fileAccessLogs,
+  messageAcknowledgments,
+  retentionPolicies,
+  accessLogs,
+  auditTrails,
+  complianceReports,
+  passwordResetTokens
+} from "./shared/schema";
+import bcrypt from "bcrypt";
 
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import bcrypt from 'bcrypt';
-import { nanoid } from 'nanoid';
-import crypto from 'crypto';
-import ws from 'ws';
-import * as schema from '../shared/schema.js';
+async function seed() {
+  console.log("🌱 Starting seed process...");
 
-neonConfig.webSocketConstructor = ws;
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL must be set for seeding');
-}
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle({ client: pool, schema });
-
-/**
- * Comprehensive seed data for WizSpeek® v3.0.0 demo
- */
-export async function seedDatabase() {
-  console.log('🌱 Starting WizSpeek® v3.0.0 seed process...');
-  
   try {
-    // 1. Create demo users with different roles
-    await seedUsers();
+    // Clear existing data in proper order to avoid foreign key constraints
+    await db.delete(passwordResetTokens);
+    await db.delete(complianceReports);
+    await db.delete(auditTrails);
+    await db.delete(accessLogs);
+    await db.delete(retentionPolicies);
+    await db.delete(messageAcknowledgments);
+    await db.delete(fileAccessLogs);
+    await db.delete(fileShareAccess);
+    await db.delete(fileShares);
+    await db.delete(files);
+    await db.delete(storyViews);
+    await db.delete(stories);
+    await db.delete(userBlocks);
+    await db.delete(messages);
+    await db.delete(conversationParticipants);
+    await db.delete(conversations);
+    await db.delete(users);
     
-    // 2. Create sample conversations (direct and group)
-    await seedConversations();
-    
-    // 3. Create realistic messages showcasing all features
-    await seedMessages();
-    
-    // 4. Create encrypted file attachments (Enhancement 3)
-    await seedFiles();
-    
-    // 5. Create file sharing permissions and access logs
-    await seedFileSharing();
-    
-    // 6. Create compliance and audit data
-    await seedCompliance();
-    
-    // 7. Create AI feature demonstration data (Enhancement 2)
-    await seedAIFeatures();
-    
-    console.log('✅ WizSpeek® v3.0.0 seed process completed successfully!');
-    console.log('\n📋 Nebusis Leadership Accounts:');
-    console.log('👑 Celso Alvarado: calvarado@nebusis.com / NebusisAdmin2025! (Executive Admin)');
-    console.log('👑 Daniel Zambrano: dzambrano@nebusis.com / NebusisAdmin2025! (Executive Admin)');
-    console.log('\n📋 Demo Testing Accounts:');
-    console.log('👑 Admin: admin / admin123 (Full enterprise access)');
-    console.log('👤 Manager: sarah.manager / manager123 (Department lead)');
-    console.log('🧪 Tester: test.user / test123 (QA and testing)');
-    console.log('📊 Compliance: compliance.officer / compliance123 (Audit access)');
-    console.log('🔍 Auditor: auditor.external / audit123 (Read-only compliance)');
-    console.log('👥 Regular Users: john.doe, jane.smith / user123');
-    
-  } catch (error) {
-    console.error('❌ Seed process failed:', error);
-    throw error;
-  } finally {
-    await pool.end();
-  }
-}
+    console.log("🗑️  Cleared existing data");
 
-/**
- * Create diverse user accounts for comprehensive testing
- */
-async function seedUsers() {
-  console.log('👥 Creating demo users...');
-  
-  const users = [
-    // Nebusis Leadership Team - Real Admin Accounts
-    {
-      username: 'calvarado',
-      email: 'calvarado@nebusis.com',
-      password: 'NebusisAdmin2025!',
-      role: 'admin' as const,
-      displayName: 'Celso Alvarado',
-      department: 'Executive Leadership',
-      isOnline: true
-    },
-    {
-      username: 'dzambrano',
-      email: 'dzambrano@nebusis.com',
-      password: 'NebusisAdmin2025!',
-      role: 'admin' as const,
-      displayName: 'Daniel Zambrano',
-      department: 'Executive Leadership',
-      isOnline: true
-    },
-    
-    // Demo System Accounts
-    {
-      username: 'admin',
-      email: 'admin@nebusis.com',
-      password: 'admin123',
-      role: 'admin' as const,
-      displayName: 'System Administrator',
-      department: 'IT Operations',
-      isOnline: true
-    },
-    {
-      username: 'sarah.manager',
-      email: 'sarah.manager@nebusis.com', 
-      password: 'manager123',
-      role: 'user' as const,
-      displayName: 'Sarah Johnson',
-      department: 'Product Management',
-      isOnline: true
-    },
-    {
-      username: 'test.user',
-      email: 'test.user@nebusis.com',
-      password: 'test123', 
-      role: 'user' as const,
-      displayName: 'Alex Thompson',
-      department: 'Quality Assurance',
-      isOnline: false
-    },
-    {
-      username: 'compliance.officer',
-      email: 'compliance@nebusis.com',
-      password: 'compliance123',
-      role: 'compliance_officer' as const,
-      displayName: 'Maria Rodriguez',
-      department: 'Compliance & Risk',
-      isOnline: true
-    },
-    {
-      username: 'auditor.external',
-      email: 'auditor@external-firm.com',
-      password: 'audit123',
-      role: 'auditor' as const,
-      displayName: 'David Chen',
-      department: 'External Audit',
-      isOnline: false
-    },
-    {
-      username: 'john.doe',
-      email: 'john.doe@nebusis.com',
-      password: 'user123',
-      role: 'user' as const,
-      displayName: 'John Doe',
-      department: 'Engineering',
-      isOnline: true
-    },
-    {
-      username: 'jane.smith',
-      email: 'jane.smith@nebusis.com',
-      password: 'user123',
-      role: 'user' as const,
-      displayName: 'Jane Smith', 
-      department: 'Design',
-      isOnline: false
-    }
-  ];
+    // Create users
+    const hashedPassword = await bcrypt.hash("password", 10);
+    const adminPassword = await bcrypt.hash("NewSecurePassword2025!", 10);
 
-  for (const userData of users) {
-    const hashedPassword = await bcrypt.hash(userData.password, 12);
-    
-    await db.insert(schema.users).values({
-      username: userData.username,
-      email: userData.email,
-      passwordHash: hashedPassword,
-      role: userData.role,
-      displayName: userData.displayName,
-      department: userData.department,
-      isOnline: userData.isOnline,
-      lastSeen: new Date(),
-      settings: {
-        theme: 'light',
-        notifications: true,
-        aiFeatures: userData.role === 'admin' || userData.username === 'sarah.manager'
+    const seedUsers = [
+      {
+        username: "testuser",
+        email: "test@example.com",
+        password: hashedPassword,
+        role: "user" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=testuser",
+        department: "Development"
+      },
+      {
+        username: "calvarado",
+        email: "calvarado@nebusis.com", 
+        password: adminPassword,
+        role: "admin" as const,
+        avatar: "/attached_assets/Celso Professional_1752971797358.jpg",
+        department: "Executive Leadership"
+      },
+      {
+        username: "dzambrano",
+        email: "dzambrano@nebusis.com",
+        password: adminPassword,
+        role: "admin" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=dzambrano", 
+        department: "Executive Leadership"
+      },
+      {
+        username: "alice",
+        email: "alice@example.com",
+        password: hashedPassword,
+        role: "user" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=alice",
+        department: "Marketing"
+      },
+      {
+        username: "bob",
+        email: "bob@example.com",
+        password: hashedPassword,
+        role: "user" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=bob",
+        department: "Sales"
+      },
+      {
+        username: "charlie",
+        email: "charlie@example.com",
+        password: hashedPassword,
+        role: "user" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=charlie",
+        department: "Engineering"
+      },
+      {
+        username: "blockeduser",
+        email: "blocked@example.com",
+        password: hashedPassword,
+        role: "user" as const,
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=blockeduser",
+        department: "Support"
       }
-    });
-  }
-  
-  console.log(`✅ Created ${users.length} demo users`);
-}
+    ];
 
-/**
- * Create realistic conversations for feature demonstration
- */
-async function seedConversations() {
-  console.log('💬 Creating demo conversations...');
-  
-  // Get users for conversation creation
-  const allUsers = await db.select().from(schema.users);
-  const admin = allUsers.find(u => u.username === 'admin')!;
-  const sarah = allUsers.find(u => u.username === 'sarah.manager')!;
-  const alex = allUsers.find(u => u.username === 'test.user')!;
-  const john = allUsers.find(u => u.username === 'john.doe')!;
-  const jane = allUsers.find(u => u.username === 'jane.smith')!;
-  
-  const conversations = [
-    {
-      name: 'WizSpeek® Enhancement Demo',
-      type: 'group' as const,
-      participants: [admin.id, sarah.id, alex.id],
-      description: 'Demonstration of all WizSpeek® v3.0.0 features'
-    },
-    {
-      name: 'Product Strategy Discussion',
-      type: 'group' as const, 
-      participants: [admin.id, sarah.id, john.id, jane.id],
-      description: 'Strategic planning for Q2 2025'
-    },
-    {
-      name: 'Direct Message - Admin & Sarah',
-      type: 'direct' as const,
-      participants: [admin.id, sarah.id],
-      description: 'Private conversation between admin and manager'
-    },
-    {
-      name: 'QA Testing Coordination',
-      type: 'group' as const,
-      participants: [alex.id, john.id, jane.id],
-      description: 'Testing workflow coordination'
-    },
-    {
-      name: 'File Sharing Test',
-      type: 'direct' as const,
-      participants: [admin.id, alex.id], 
-      description: 'Enhancement 3 file sharing demonstration'
-    }
-  ];
+    const insertedUsers = await db.insert(users).values(seedUsers).returning();
+    console.log(`👥 Created ${insertedUsers.length} users`);
 
-  for (const convData of conversations) {
-    // Create conversation
-    const [conversation] = await db.insert(schema.conversations).values({
-      name: convData.name,
-      type: convData.type,
-      description: convData.description,
-      createdBy: convData.participants[0]
-    }).returning();
-
-    // Add participants
-    for (const participantId of convData.participants) {
-      await db.insert(schema.conversationParticipants).values({
-        conversationId: conversation.id,
-        userId: participantId,
-        role: participantId === convData.participants[0] ? 'admin' : 'member',
-        joinedAt: new Date()
-      });
-    }
-  }
-  
-  console.log(`✅ Created ${conversations.length} demo conversations`);
-}
-
-/**
- * Create realistic messages showcasing all enhancements
- */
-async function seedMessages() {
-  console.log('📝 Creating demo messages...');
-  
-  const conversations = await db.select().from(schema.conversations);
-  const users = await db.select().from(schema.users);
-  
-  // Find specific conversations and users
-  const enhancementDemo = conversations.find(c => c.name === 'WizSpeek® Enhancement Demo')!;
-  const productStrategy = conversations.find(c => c.name === 'Product Strategy Discussion')!;
-  const adminDirect = conversations.find(c => c.name === 'Direct Message - Admin & Sarah')!;
-  
-  const admin = users.find(u => u.username === 'admin')!;
-  const sarah = users.find(u => u.username === 'sarah.manager')!;
-  const alex = users.find(u => u.username === 'test.user')!;
-  const john = users.find(u => u.username === 'john.doe')!;
-  
-  // Enhancement Demo Conversation Messages
-  const enhancementMessages = [
-    {
-      conversationId: enhancementDemo.id,
-      senderId: admin.id,
-      content: 'Welcome to WizSpeek® v3.0.0! All three major enhancements are now complete and ready for demonstration.',
-      type: 'text' as const,
-      classification: 'policy_notification' as const,
-      priority: 'high' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: sarah.id,
-      content: 'Excellent! Can you show us the new file sharing capabilities with AES-256 encryption?',
-      type: 'text' as const,
-      priority: 'normal' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: admin.id,
-      content: '📎 Encrypted file shared: WizSpeek_Technical_Specifications_v3.pdf',
-      type: 'file' as const,
-      metadata: {
-        fileId: 1,
-        fileName: 'WizSpeek_Technical_Specifications_v3.pdf',
-        fileSize: 2486592,
-        mimeType: 'application/pdf',
-        encryptionStatus: 'AES-256 encrypted'
-      },
-      priority: 'normal' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: alex.id,
-      content: 'The file encryption is seamless! How about we test the AI features next?',
-      type: 'text' as const,
-      priority: 'normal' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: sarah.id,
-      content: 'The AI smart replies are incredibly helpful for quick responses. The conversation summarization feature is perfect for catching up on missed discussions.',
-      type: 'text' as const,
-      priority: 'normal' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: admin.id,
-      content: 'Should we test the WebRTC video calling functionality?',
-      type: 'text' as const,
-      priority: 'normal' as const
-    },
-    {
-      conversationId: enhancementDemo.id,
-      senderId: john.id,
-      content: '📞 Video call initiated - Enhancement 1 WebRTC system active',
-      type: 'system' as const,
-      metadata: {
-        callType: 'video',
-        participants: [admin.id, sarah.id, alex.id, john.id],
-        duration: '00:15:32'
-      },
-      priority: 'normal' as const
-    }
-  ];
-
-  // Product Strategy Messages
-  const strategyMessages = [
-    {
-      conversationId: productStrategy.id,
-      senderId: sarah.id,
-      content: 'Team, let\'s discuss our Q2 2025 product roadmap. I\'ve prepared a comprehensive analysis.',
-      type: 'text' as const,
-      classification: 'general' as const,
-      priority: 'high' as const,
-      requiresAcknowledgment: true
-    },
-    {
-      conversationId: productStrategy.id,
-      senderId: john.id,
-      content: 'The engineering team is ready to support the new features. We\'ve completed the technical feasibility study.',
-      type: 'text' as const,
-      priority: 'normal' as const
-    },
-    {
-      conversationId: productStrategy.id,
-      senderId: sarah.id,
-      content: '📊 Shared document: Q2_2025_Product_Roadmap_Analysis.xlsx',
-      type: 'file' as const,
-      metadata: {
-        fileId: 2,
-        fileName: 'Q2_2025_Product_Roadmap_Analysis.xlsx',
-        fileSize: 1234567,
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      },
-      priority: 'high' as const
-    }
-  ];
-
-  // Direct Messages
-  const directMessages = [
-    {
-      conversationId: adminDirect.id,
-      senderId: admin.id,
-      content: 'Sarah, the v3.0.0 deployment is ready. All compliance features are active.',
-      type: 'text' as const,
-      classification: 'audit_notice' as const,
-      priority: 'high' as const
-    },
-    {
-      conversationId: adminDirect.id,
-      senderId: sarah.id,
-      content: 'Perfect! The team will be excited to see the final product. When can we schedule the stakeholder demo?',
-      type: 'text' as const,
-      priority: 'normal' as const
-    }
-  ];
-
-  // Insert all messages
-  const allMessages = [...enhancementMessages, ...strategyMessages, ...directMessages];
-  
-  for (const messageData of allMessages) {
-    const contentHash = crypto.createHash('sha256').update(messageData.content).digest('hex');
+    // Ban the test user to demonstrate admin functionality
+    await db.update(users)
+      .set({
+        isBanned: true,
+        bannedAt: new Date(),
+        bannedBy: insertedUsers[1].id, // calvarado (admin)
+        banReason: "Violation of community guidelines - demo ban"
+      })
+      .where(eq(users.username, "blockeduser"));
     
-    await db.insert(schema.messages).values({
-      ...messageData,
-      contentHash,
-      createdAt: new Date(Date.now() - Math.random() * 86400000), // Random time within last 24h
-      updatedAt: new Date()
-    });
-  }
-  
-  console.log(`✅ Created ${allMessages.length} demo messages`);
-}
+    console.log("🔨 Banned test user for demo purposes");
 
-/**
- * Create encrypted file attachments (Enhancement 3)
- */
-async function seedFiles() {
-  console.log('📁 Creating demo files with encryption...');
-  
-  const admin = await db.select().from(schema.users).where(schema.eq(schema.users.username, 'admin'));
-  const sarah = await db.select().from(schema.users).where(schema.eq(schema.users.username, 'sarah.manager'));
-  
-  const files = [
-    {
-      filename: 'WizSpeek_Technical_Specifications_v3.pdf',
-      originalName: 'WizSpeek_Technical_Specifications_v3.pdf',
-      mimeType: 'application/pdf',
-      size: 2486592,
-      uploaderId: admin[0].id,
-      encryptionKey: crypto.randomBytes(32).toString('hex'),
-      encryptionIv: crypto.randomBytes(16).toString('hex'),
-      description: 'Complete technical documentation for WizSpeek® v3.0.0'
-    },
-    {
-      filename: 'Q2_2025_Product_Roadmap_Analysis.xlsx',
-      originalName: 'Q2_2025_Product_Roadmap_Analysis.xlsx', 
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      size: 1234567,
-      uploaderId: sarah[0].id,
-      encryptionKey: crypto.randomBytes(32).toString('hex'),
-      encryptionIv: crypto.randomBytes(16).toString('hex'),
-      description: 'Strategic product analysis and roadmap planning'
-    },
-    {
-      filename: 'demo_encrypted_image.jpg',
-      originalName: 'WizSpeek_Architecture_Diagram.jpg',
-      mimeType: 'image/jpeg',
-      size: 892345,
-      uploaderId: admin[0].id,
-      encryptionKey: crypto.randomBytes(32).toString('hex'),
-      encryptionIv: crypto.randomBytes(16).toString('hex'),
-      description: 'System architecture visualization'
-    }
-  ];
+    // Create stories
+    const storyData = [
+      {
+        userId: insertedUsers[0].id, // testuser
+        mediaType: "text" as const,
+        caption: "Welcome to WizSpeek! Check out our new Stories feature 🎉",
+        backgroundColor: "#2E5A87",
+        visibility: "public" as const,
+        hiddenFromUsers: [],
+        mediaUrl: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: insertedUsers[3].id, // alice
+        mediaType: "text" as const,
+        caption: "Just launched our new marketing campaign! So excited to see the results.",
+        backgroundColor: "#E74C3C",
+        visibility: "public" as const,
+        hiddenFromUsers: [],
+        mediaUrl: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: insertedUsers[4].id, // bob
+        mediaType: "text" as const,
+        caption: "Closed 3 deals today! Team work makes the dream work 💪",
+        backgroundColor: "#27AE60",
+        visibility: "public" as const,
+        hiddenFromUsers: [],
+        mediaUrl: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: insertedUsers[5].id, // charlie
+        mediaType: "text" as const,
+        caption: "Working on some exciting new features. Stay tuned! 🚀",
+        backgroundColor: "#8E44AD",
+        visibility: "public" as const,
+        hiddenFromUsers: [],
+        mediaUrl: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: insertedUsers[1].id, // calvarado (admin)
+        mediaType: "text" as const,
+        caption: "Admin announcement: New compliance features now live! 📋",
+        backgroundColor: "#F39C12",
+        visibility: "public" as const,
+        hiddenFromUsers: [],
+        mediaUrl: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      }
+    ];
 
-  for (const fileData of files) {
-    const fileHash = crypto.createHash('sha256').update(fileData.filename + fileData.size).digest('hex');
-    
-    await db.insert(schema.files).values({
-      filename: fileData.filename,
-      originalName: fileData.originalName,
-      mimeType: fileData.mimeType,
-      size: fileData.size,
-      uploaderId: fileData.uploaderId,
-      encryptionKey: fileData.encryptionKey,
-      encryptionIv: fileData.encryptionIv,
-      fileHash,
-      description: fileData.description,
-      uploadedAt: new Date()
-    });
-  }
-  
-  console.log(`✅ Created ${files.length} encrypted demo files`);
-}
+    const insertedStories = await db.insert(stories).values(storyData).returning();
+    console.log(`📖 Created ${insertedStories.length} stories`);
 
-/**
- * Create file sharing permissions and access logs
- */
-async function seedFileSharing() {
-  console.log('🔐 Creating file sharing permissions...');
-  
-  const files = await db.select().from(schema.files);
-  const users = await db.select().from(schema.users);
-  
-  // Create file shares for demonstration
-  for (const file of files) {
-    // Share with multiple users
-    const shareableUsers = users.filter(u => u.id !== file.uploaderId).slice(0, 3);
-    
-    for (const user of shareableUsers) {
-      const shareId = nanoid();
+    // Create story views (simulating "seen by" functionality)
+    const storyViewData = [
+      // testuser's story viewed by alice, bob, charlie
+      { storyId: insertedStories[0].id, viewerId: insertedUsers[3].id },
+      { storyId: insertedStories[0].id, viewerId: insertedUsers[4].id },
+      { storyId: insertedStories[0].id, viewerId: insertedUsers[5].id },
       
-      await db.insert(schema.fileShares).values({
-        shareId,
-        fileId: file.id,
-        sharedBy: file.uploaderId,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-        isActive: true,
-        shareSettings: {
-          allowDownload: true,
-          allowPreview: true,
-          requiresApproval: false
-        }
-      });
+      // alice's story viewed by testuser, bob
+      { storyId: insertedStories[1].id, viewerId: insertedUsers[0].id },
+      { storyId: insertedStories[1].id, viewerId: insertedUsers[4].id },
+      
+      // bob's story viewed by alice, charlie
+      { storyId: insertedStories[2].id, viewerId: insertedUsers[3].id },
+      { storyId: insertedStories[2].id, viewerId: insertedUsers[5].id },
+      
+      // charlie's story viewed by testuser
+      { storyId: insertedStories[3].id, viewerId: insertedUsers[0].id },
+      
+      // admin story viewed by everyone
+      { storyId: insertedStories[4].id, viewerId: insertedUsers[0].id },
+      { storyId: insertedStories[4].id, viewerId: insertedUsers[3].id },
+      { storyId: insertedStories[4].id, viewerId: insertedUsers[4].id },
+      { storyId: insertedStories[4].id, viewerId: insertedUsers[5].id }
+    ];
 
-      // Create access permissions
-      await db.insert(schema.fileShareAccess).values({
-        shareId,
-        userId: user.id,
-        permission: user.role === 'admin' ? 'full_access' : 'read_only',
-        grantedAt: new Date()
-      });
+    const insertedStoryViews = await db.insert(storyViews).values(storyViewData).returning();
+    console.log(`👁️  Created ${insertedStoryViews.length} story views`);
 
-      // Create access logs for demonstration
-      await db.insert(schema.fileAccessLogs).values({
-        fileId: file.id,
-        userId: user.id,
-        action: 'shared',
-        ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1),
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WizSpeek/3.0.0',
-        accessedAt: new Date()
-      });
-    }
-  }
-  
-  console.log('✅ Created file sharing permissions and access logs');
-}
-
-/**
- * Create compliance and audit data
- */
-async function seedCompliance() {
-  console.log('📋 Creating compliance and audit data...');
-  
-  const users = await db.select().from(schema.users);
-  const messages = await db.select().from(schema.messages);
-  
-  // Create message acknowledgments
-  for (const message of messages.filter(m => m.requiresAcknowledgment)) {
-    const acknowledgers = users.filter(u => u.id !== message.senderId);
-    
-    for (const user of acknowledgers) {
-      await db.insert(schema.messageAcknowledgments).values({
-        messageId: message.id,
-        userId: user.id,
-        acknowledgedAt: new Date(Date.now() - Math.random() * 3600000) // Within last hour
-      });
-    }
-  }
-
-  // Create retention policies
-  await db.insert(schema.retentionPolicies).values([
-    {
-      name: 'Standard Message Retention',
-      description: 'Standard 7-year retention for business communications',
-      retentionPeriodDays: 2555, // 7 years
-      contentType: 'messages',
-      isActive: true,
-      createdBy: users.find(u => u.role === 'admin')!.id
-    },
-    {
-      name: 'Sensitive File Retention', 
-      description: '10-year retention for encrypted files and documents',
-      retentionPeriodDays: 3650, // 10 years
-      contentType: 'files',
-      isActive: true,
-      createdBy: users.find(u => u.role === 'admin')!.id
-    }
-  ]);
-
-  // Create access logs
-  for (const user of users) {
-    await db.insert(schema.accessLogs).values([
+    // Create user blocks (Instagram-style blocking)
+    const blockData = [
       {
-        userId: user.id,
-        action: 'login',
-        resource: '/api/auth/login',
-        ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1),
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WizSpeek/3.0.0',
-        timestamp: new Date()
+        blockerId: insertedUsers[0].id, // testuser blocks blockeduser
+        blockedId: insertedUsers[6].id,
+        reason: "Inappropriate messages"
       },
       {
-        userId: user.id,
-        action: 'view_conversations',
-        resource: '/api/conversations', 
-        ipAddress: '192.168.1.' + Math.floor(Math.random() * 254 + 1),
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) WizSpeek/3.0.0',
-        timestamp: new Date()
+        blockerId: insertedUsers[3].id, // alice blocks charlie
+        blockedId: insertedUsers[5].id,
+        reason: "Personal conflict"
       }
-    ]);
+    ];
+
+    const insertedBlocks = await db.insert(userBlocks).values(blockData).returning();
+    console.log(`🚫 Created ${insertedBlocks.length} user blocks`);
+
+    // Create conversations
+    const conversationData = [
+      {
+        name: "General Discussion",
+        type: "group" as const,
+        createdBy: insertedUsers[0].id,
+        isEncrypted: true
+      },
+      {
+        name: "Admin Team",
+        type: "group" as const,
+        createdBy: insertedUsers[1].id,
+        isEncrypted: true
+      },
+      {
+        name: "Stories Feature Demo",
+        type: "group" as const,
+        createdBy: insertedUsers[0].id,
+        isEncrypted: true
+      },
+      {
+        name: null, // Direct message between calvarado and testuser
+        type: "direct" as const,
+        createdBy: insertedUsers[1].id, // calvarado
+        isEncrypted: true
+      },
+      {
+        name: null, // Direct message between calvarado and alice
+        type: "direct" as const,
+        createdBy: insertedUsers[1].id, // calvarado
+        isEncrypted: true
+      }
+    ];
+
+    const insertedConversations = await db.insert(conversations).values(conversationData).returning();
+    console.log(`💬 Created ${insertedConversations.length} conversations`);
+
+    // Create participants
+    const participantData = [
+      // General Discussion participants
+      { conversationId: insertedConversations[0].id, userId: insertedUsers[0].id, role: "admin" as const },
+      { conversationId: insertedConversations[0].id, userId: insertedUsers[3].id, role: "member" as const },
+      { conversationId: insertedConversations[0].id, userId: insertedUsers[4].id, role: "member" as const },
+      { conversationId: insertedConversations[0].id, userId: insertedUsers[5].id, role: "member" as const },
+      
+      // Admin Team participants
+      { conversationId: insertedConversations[1].id, userId: insertedUsers[1].id, role: "admin" as const },
+      { conversationId: insertedConversations[1].id, userId: insertedUsers[2].id, role: "admin" as const },
+      
+      // Stories Feature Demo participants
+      { conversationId: insertedConversations[2].id, userId: insertedUsers[0].id, role: "admin" as const },
+      { conversationId: insertedConversations[2].id, userId: insertedUsers[1].id, role: "member" as const },
+      { conversationId: insertedConversations[2].id, userId: insertedUsers[3].id, role: "member" as const },
+      
+      // Direct message: calvarado and testuser
+      { conversationId: insertedConversations[3].id, userId: insertedUsers[1].id, role: "member" as const }, // calvarado
+      { conversationId: insertedConversations[3].id, userId: insertedUsers[0].id, role: "member" as const }, // testuser
+      
+      // Direct message: calvarado and alice
+      { conversationId: insertedConversations[4].id, userId: insertedUsers[1].id, role: "member" as const }, // calvarado
+      { conversationId: insertedConversations[4].id, userId: insertedUsers[3].id, role: "member" as const }, // alice
+    ];
+
+    const insertedParticipants = await db.insert(conversationParticipants).values(participantData).returning();
+    console.log(`👥 Created ${insertedParticipants.length} participants`);
+
+    // Create messages
+    const messageData = [
+      {
+        conversationId: insertedConversations[2].id,
+        senderId: insertedUsers[0].id,
+        content: "Hey everyone! 👋 Welcome to the new Stories feature demo! This is where we'll test the mandatory 'seen by' functionality.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[2].id,
+        senderId: insertedUsers[1].id,
+        content: "Great work on implementing Stories! The 'seen by' tracking is working perfectly. Users can now see who viewed their stories.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[2].id,
+        senderId: insertedUsers[3].id,
+        content: "I love how it shows the view count and individual viewers! Very similar to Instagram Stories but with our WizSpeek branding 😊",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[1].id,
+        senderId: insertedUsers[1].id,
+        content: "Admin notice: New user management features are live. We can now ban/unban users and see detailed user analytics.",
+        messageType: "text" as const,
+        classification: "policy_notification" as const,
+        priority: "high" as const,
+        requiresAcknowledgment: true
+      },
+      {
+        conversationId: insertedConversations[1].id,
+        senderId: insertedUsers[2].id,
+        content: "Perfect! The user blocking system is also working great. Users can block each other Instagram-style with reasons.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[3].id, // Direct message: calvarado -> testuser
+        senderId: insertedUsers[1].id, // calvarado
+        content: "Hi! Thanks for all the great testing work on WizSpeek®. The new features are looking fantastic.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[3].id, // Direct message: testuser -> calvarado
+        senderId: insertedUsers[0].id, // testuser
+        content: "Thank you! I'm excited about the Stories feature and the admin controls. Everything feels very professional.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[4].id, // Direct message: calvarado -> alice
+        senderId: insertedUsers[1].id, // calvarado
+        content: "Alice, could you help review the marketing materials for our WizSpeek® launch?",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      },
+      {
+        conversationId: insertedConversations[4].id, // Direct message: alice -> calvarado
+        senderId: insertedUsers[3].id, // alice
+        content: "Absolutely! I'll review them this afternoon and send you my feedback.",
+        messageType: "text" as const,
+        classification: "general" as const,
+        priority: "normal" as const
+      }
+    ];
+
+    const insertedMessages = await db.insert(messages).values(messageData).returning();
+    console.log(`📨 Created ${insertedMessages.length} messages`);
+
+    console.log("✅ Seed process completed successfully!");
+    console.log("\n📊 Summary:");
+    console.log(`   Users: ${insertedUsers.length} (including 1 banned user)`);
+    console.log(`   Stories: ${insertedStories.length} (with mandatory view tracking)`);
+    console.log(`   Story Views: ${insertedStoryViews.length} ("seen by" records)`);
+    console.log(`   User Blocks: ${insertedBlocks.length} (Instagram-style blocking)`);
+    console.log(`   Conversations: ${insertedConversations.length} (3 groups + 2 direct messages)`);
+    console.log(`   Messages: ${insertedMessages.length}`);
+    
+    console.log("\n🔑 Login credentials:");
+    console.log("   Admin: calvarado / NewSecurePassword2025!");
+    console.log("   Admin: dzambrano / NewSecurePassword2025!");
+    console.log("   User: testuser / password");
+    console.log("   User: alice / password");
+    console.log("   User: bob / password");
+    console.log("   User: charlie / password");
+    console.log("   Banned: blockeduser / password");
+
+  } catch (error) {
+    console.error("❌ Seed process failed:", error);
+    throw error;
   }
-
-  // Create audit trails
-  await db.insert(schema.auditTrails).values([
-    {
-      userId: users.find(u => u.role === 'admin')!.id,
-      action: 'file_encryption_enabled',
-      resourceType: 'system_settings',
-      resourceId: 'encryption_config',
-      oldValue: null,
-      newValue: JSON.stringify({ encryptionEnabled: true, algorithm: 'AES-256' }),
-      ipAddress: '192.168.1.100',
-      userAgent: 'Mozilla/5.0 WizSpeek/3.0.0'
-    },
-    {
-      userId: users.find(u => u.role === 'compliance_officer')!.id,
-      action: 'compliance_review',
-      resourceType: 'audit_report',
-      resourceId: 'monthly_review_' + new Date().getMonth(),
-      oldValue: null,
-      newValue: JSON.stringify({ status: 'completed', findings: 'all_compliant' }),
-      ipAddress: '192.168.1.150',
-      userAgent: 'Mozilla/5.0 WizSpeek/3.0.0'
-    }
-  ]);
-  
-  console.log('✅ Created compliance and audit demonstration data');
 }
 
-/**
- * Create AI feature demonstration data (Enhancement 2)
- */
-async function seedAIFeatures() {
-  console.log('🤖 Creating AI features demonstration data...');
-  
-  // This would typically be handled by the AI service endpoints
-  // We're creating placeholder data to show the AI features in action
-  
-  console.log('✅ AI features ready for demonstration via API endpoints');
-}
-
-/**
- * Main seed execution
- */
-if (require.main === module) {
-  seedDatabase()
-    .then(() => {
-      console.log('\n🎉 WizSpeek® v3.0.0 seed data creation complete!');
-      console.log('\n🚀 Ready for comprehensive feature demonstration');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('❌ Seed process failed:', error);
-      process.exit(1);
-    });
-}
+seed().catch((error) => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
