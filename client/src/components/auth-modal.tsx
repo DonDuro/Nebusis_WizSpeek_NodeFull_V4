@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { authApi, setAuthToken } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 import type { LoginCredentials, RegisterCredentials } from "@/types";
 import wizSpeakIcon from "@/assets/wizspeak-icon.svg";
 
@@ -33,6 +34,7 @@ interface AuthModalProps {
 
 export function AuthModal({ onSuccess }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { toast } = useToast();
 
   const loginForm = useForm<LoginCredentials>({
@@ -73,7 +75,15 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
   });
 
   const registerMutation = useMutation({
-    mutationFn: authApi.register,
+    mutationFn: async (data: RegisterCredentials) => {
+      try {
+        const response = await authApi.register(data);
+        return response;
+      } catch (error: any) {
+        console.error('Registration error:', error);
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       setAuthToken(data.token);
       toast({
@@ -83,9 +93,10 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
       onSuccess();
     },
     onError: (error: any) => {
+      console.error('Registration mutation error:', error);
       toast({
         title: "Registration failed",
-        description: error.message || "Something went wrong",
+        description: error.message || "Unable to create account. Please try again.",
         variant: "destructive",
       });
     },
@@ -97,10 +108,51 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
 
   const handleRegister = (data: RegisterCredentials & { confirmPassword: string }) => {
     const { confirmPassword, ...registerData } = data;
+    console.log('Submitting registration:', { ...registerData, password: '[REDACTED]' });
     registerMutation.mutate({
       ...registerData,
       email: registerData.email || undefined,
     });
+  };
+
+  const handleDemoLogin = () => {
+    if (loginMutation.isPending) return; // Prevent double-click
+    loginMutation.mutate({ username: "calvarado", password: "NewSecurePassword2025!" });
+  };
+
+  const forgotPasswordMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message);
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Reset Link Sent",
+        description: "If an account exists with this email, you'll receive reset instructions.",
+      });
+      setShowForgotPassword(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send reset email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleForgotPassword = (email: string) => {
+    forgotPasswordMutation.mutate(email);
   };
 
   return (
@@ -113,8 +165,6 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
           <CardTitle className="text-2xl font-bold text-primary">WizSpeek®</CardTitle>
           <CardDescription>
             Talk Smart. Stay Secure.
-            <br />
-            <span className="text-xs text-muted-foreground">Powered by Nebusis®</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -149,37 +199,63 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
                       {loginForm.formState.errors.password.message}
                     </p>
                   )}
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                 </div>
                 <Button 
                   type="submit" 
                   className="w-full bg-primary-blue hover:bg-primary-blue/90"
                   disabled={loginMutation.isPending}
                 >
-                  {loginMutation.isPending ? "Signing in..." : "Sign In"}
+                  {loginMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
                 
                 <Button 
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => {
-                    loginForm.setValue("username", "testuser");
-                    loginForm.setValue("password", "password123");
-                    handleLogin({ username: "testuser", password: "password123" });
-                  }}
+                  onClick={handleDemoLogin}
                   disabled={loginMutation.isPending}
                 >
-                  Demo Login
+                  {loginMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Demo Login"
+                  )}
                 </Button>
               </form>
-              <div className="mt-4 text-center">
-                <Button
-                  variant="link"
-                  onClick={() => setIsLogin(false)}
-                  className="text-primary-blue hover:text-primary-blue/90"
-                >
-                  Don't have an account? Sign Up
-                </Button>
+              <div className="mt-4 space-y-2">
+                <div className="text-xs text-muted-foreground text-center border-t pt-3">
+                  <p className="font-medium mb-2">Demo Credentials:</p>
+                  <p>Admin: <code className="bg-muted px-1 rounded">calvarado</code> / <code className="bg-muted px-1 rounded">NewSecurePassword2025!</code></p>
+                  <p>User: <code className="bg-muted px-1 rounded">testuser</code> / <code className="bg-muted px-1 rounded">password</code></p>
+                </div>
+                <div className="text-center">
+                  <Button
+                    variant="link"
+                    onClick={() => setIsLogin(false)}
+                    className="text-primary-blue hover:text-primary-blue/90"
+                  >
+                    Don't have an account? Sign Up
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -247,7 +323,14 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
                   className="w-full bg-primary-blue hover:bg-primary-blue/90"
                   disabled={registerMutation.isPending}
                 >
-                  {registerMutation.isPending ? "Creating Account..." : "Create Account"}
+                  {registerMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
                 </Button>
               </form>
               <div className="mt-4 text-center">
@@ -262,7 +345,74 @@ export function AuthModal({ onSuccess }: AuthModalProps) {
             </div>
           )}
         </CardContent>
+        
+        {/* Powered by Nebusis® Footer */}
+        <div className="text-center py-3 border-t border-border">
+          <span className="text-xs text-blue-700 font-medium">
+            Powered by Nebusis®
+          </span>
+        </div>
       </Card>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-sm mx-4">
+            <CardHeader className="text-center">
+              <CardTitle className="text-xl font-bold">Reset Password</CardTitle>
+              <CardDescription>
+                Enter your email to receive reset instructions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const email = formData.get('email') as string;
+                  handleForgotPassword(email);
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <Label htmlFor="reset-email">Email</Label>
+                  <Input
+                    id="reset-email"
+                    name="email"
+                    type="email"
+                    placeholder="Enter your email address"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setShowForgotPassword(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-primary-blue hover:bg-primary-blue/90"
+                    disabled={forgotPasswordMutation.isPending}
+                  >
+                    {forgotPasswordMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send Reset Link"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
