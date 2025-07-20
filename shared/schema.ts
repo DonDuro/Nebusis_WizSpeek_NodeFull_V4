@@ -15,6 +15,19 @@ export const users = pgTable("users", {
   isOnline: boolean("is_online").default(false),
   lastSeen: timestamp("last_seen").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  isBanned: boolean("is_banned").default(false),
+  bannedAt: timestamp("banned_at"),
+  bannedBy: integer("banned_by").references(() => users.id),
+  banReason: text("ban_reason"),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const conversations = pgTable("conversations", {
@@ -162,6 +175,36 @@ export const complianceReports = pgTable("compliance_reports", {
   parameters: json("parameters"),
 });
 
+// Stories feature tables
+export const stories = pgTable("stories", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  mediaUrl: text("media_url"),
+  mediaType: text("media_type").notNull(), // image, video, text, audio
+  caption: text("caption"),
+  backgroundColor: text("background_color").default("#2E5A87"), // for text stories
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(), // 24 hours from creation
+  visibility: text("visibility").notNull().default("public"), // public, private, hidden
+  hiddenFromUsers: json("hidden_from_users").$type<number[]>().default([]), // array of user IDs
+});
+
+export const storyViews = pgTable("story_views", {
+  id: serial("id").primaryKey(),
+  storyId: integer("story_id").references(() => stories.id).notNull(),
+  viewerId: integer("viewer_id").references(() => users.id).notNull(),
+  viewedAt: timestamp("viewed_at").defaultNow().notNull(),
+});
+
+// User blocking system tables
+export const userBlocks = pgTable("user_blocks", {
+  id: serial("id").primaryKey(),
+  blockerId: integer("blocker_id").references(() => users.id).notNull(), // user who blocked
+  blockedId: integer("blocked_id").references(() => users.id).notNull(), // user who was blocked
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  reason: text("reason"), // optional reason for blocking
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(messages),
@@ -171,6 +214,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   auditTrails: many(auditTrails),
   retentionPolicies: many(retentionPolicies),
   complianceReports: many(complianceReports),
+  stories: many(stories),
+  storyViews: many(storyViews),
+  blockedUsers: many(userBlocks, { relationName: "blocker" }),
+  blockedByUsers: many(userBlocks, { relationName: "blocked" }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ many }) => ({
@@ -293,6 +340,38 @@ export const complianceReportsRelations = relations(complianceReports, ({ one })
   }),
 }));
 
+export const storiesRelations = relations(stories, ({ one, many }) => ({
+  user: one(users, {
+    fields: [stories.userId],
+    references: [users.id],
+  }),
+  views: many(storyViews),
+}));
+
+export const storyViewsRelations = relations(storyViews, ({ one }) => ({
+  story: one(stories, {
+    fields: [storyViews.storyId],
+    references: [stories.id],
+  }),
+  viewer: one(users, {
+    fields: [storyViews.viewerId],
+    references: [users.id],
+  }),
+}));
+
+export const userBlocksRelations = relations(userBlocks, ({ one }) => ({
+  blocker: one(users, {
+    fields: [userBlocks.blockerId],
+    references: [users.id],
+    relationName: "blocker",
+  }),
+  blocked: one(users, {
+    fields: [userBlocks.blockedId],
+    references: [users.id],
+    relationName: "blocked",
+  }),
+}));
+
 // Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -363,6 +442,26 @@ export const insertComplianceReportSchema = createInsertSchema(complianceReports
   generatedAt: true,
 });
 
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStorySchema = createInsertSchema(stories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStoryViewSchema = createInsertSchema(storyViews).omit({
+  id: true,
+  viewedAt: true,
+});
+
+export const insertUserBlockSchema = createInsertSchema(userBlocks).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -391,7 +490,16 @@ export type InsertAccessLog = z.infer<typeof insertAccessLogSchema>;
 export type AuditTrail = typeof auditTrails.$inferSelect;
 export type InsertAuditTrail = z.infer<typeof insertAuditTrailSchema>;
 export type ComplianceReport = typeof complianceReports.$inferSelect;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertComplianceReport = z.infer<typeof insertComplianceReportSchema>;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+
+export type Story = typeof stories.$inferSelect;
+export type InsertStory = z.infer<typeof insertStorySchema>;
+export type StoryView = typeof storyViews.$inferSelect;
+export type InsertStoryView = z.infer<typeof insertStoryViewSchema>;
+export type UserBlock = typeof userBlocks.$inferSelect;
+export type InsertUserBlock = z.infer<typeof insertUserBlockSchema>;
 
 // Enums for consistent values
 export const MessageClassification = {
@@ -417,4 +525,17 @@ export const AccessAction = {
   DELETE: "delete",
   EXPORT: "export",
   ACKNOWLEDGE: "acknowledge",
+} as const;
+
+export const StoryMediaType = {
+  IMAGE: "image",
+  VIDEO: "video",
+  TEXT: "text",
+  AUDIO: "audio",
+} as const;
+
+export const StoryVisibility = {
+  PUBLIC: "public",
+  PRIVATE: "private",
+  HIDDEN: "hidden",
 } as const;
